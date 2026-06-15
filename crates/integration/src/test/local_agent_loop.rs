@@ -14,10 +14,16 @@ use warp::integration_testing::agent_mode::{
     ConversationTarget, add_custom_model_endpoint, assert_any_exchange_text,
     assert_exchange_text_contains, assert_turned_finish_with_success, enter_agent_view,
     set_preferred_agent_mode_custom_llm, submit_ai_query, submit_ai_query_and_wait_until_done,
+    user_defaults_map_with_active_ai,
 };
 use warp::integration_testing::step::new_step_with_default_assertions;
-use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for_tab;
+use warp::integration_testing::terminal::{
+    clear_blocklist_to_remove_bootstrapped_blocks, execute_echo_str,
+    wait_until_bootstrapped_single_pane_for_tab,
+};
+use warp::integration_testing::view_getters::single_input_view_for_tab;
 use warpui_core::async_assert;
+use warpui_core::integration::TestStep;
 
 use super::new_builder;
 use crate::Builder;
@@ -224,6 +230,96 @@ pub fn test_local_agent_loop_shell_tool_round_trip() -> Builder {
                     async_assert!(
                         mock.matched(),
                         "Expected at least two requests to the stub /chat/completions"
+                    )
+                }),
+        )
+}
+
+/// A reply that calls the `suggest_prompt` tool — what the model returns for a
+/// passive prompt-suggestion turn.
+fn suggest_prompt_tool_call_sse(prompt: &str, label: &str) -> String {
+    let arguments = serde_json::json!({ "prompt": prompt, "label": label }).to_string();
+    sse_body(&[
+        delta_chunk(
+            serde_json::json!({
+                "role": "assistant",
+                "tool_calls": [{
+                    "index": 0,
+                    "id": "call_suggest_1",
+                    "type": "function",
+                    "function": { "name": "suggest_prompt", "arguments": arguments },
+                }],
+            }),
+            None,
+        ),
+        delta_chunk(serde_json::json!({}), Some("tool_calls")),
+    ])
+}
+
+/// End-to-end test of passive prompt suggestions on the local path. After a
+/// shell command completes, the passive-suggestions trigger must go through the
+/// MAA (local) path — not the server-backed legacy path — reach the custom
+/// endpoint, and surface the model's `suggest_prompt` as a prompt-suggestion
+/// banner. This is the path that the unit tests bypass (they drive the adapter
+/// directly), so it guards the MAA-vs-legacy selection and the wiring.
+pub fn test_local_agent_loop_passive_prompt_suggestion() -> Builder {
+    FeatureFlag::CustomInferenceEndpoints.set_enabled(true);
+    // Route passive suggestions through the local multi-agent path.
+    FeatureFlag::PromptSuggestionsViaMAA.set_enabled(true);
+
+    const SUGGESTED_PROMPT: &str = "Run `fd -e go .` to find Go files and show the output";
+    const SUGGESTED_LABEL: &str = "Fix fd usage";
+
+    let server = leaked_stub_server();
+    let mock: &'static mockito::Mock = Box::leak(Box::new(
+        server
+            .mock("POST", "/chat/completions")
+            .match_header("authorization", &*format!("Bearer {API_KEY}"))
+            .with_status(200)
+            .with_header("content-type", "text/event-stream")
+            .with_body(suggest_prompt_tool_call_sse(
+                SUGGESTED_PROMPT,
+                SUGGESTED_LABEL,
+            ))
+            .expect_at_least(1)
+            .create(),
+    ));
+
+    new_builder()
+        // Enables active AI + prompt suggestions (AgentModeQuerySuggestionsEnabled).
+        .with_user_defaults(user_defaults_map_with_active_ai(true))
+        .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
+        .with_step(clear_blocklist_to_remove_bootstrapped_blocks())
+        .with_step(add_custom_model_endpoint(
+            "Stub OpenAI endpoint",
+            &server.url(),
+            API_KEY,
+            MODEL_NAME,
+            CONFIG_KEY,
+        ))
+        .with_step(set_preferred_agent_mode_custom_llm(CONFIG_KEY))
+        // Completing a user block triggers passive prompt suggestions.
+        .with_step(execute_echo_str(0, "hi"))
+        .with_step(
+            TestStep::new("Wait for the local passive prompt suggestion banner")
+                .set_timeout(Duration::from_secs(60))
+                .add_named_assertion(
+                    "prompt-suggestion banner shows the stub's suggested prompt",
+                    move |app, window_id| {
+                        let input = single_input_view_for_tab(app, window_id, 0);
+                        input.read(app, |input, _| {
+                            let shown = input.prompt_suggestion_banner_prompt();
+                            async_assert!(
+                                shown.as_deref() == Some(SUGGESTED_PROMPT),
+                                "expected local passive prompt-suggestion banner; got {shown:?}"
+                            )
+                        })
+                    },
+                )
+                .add_named_assertion("the custom endpoint served the suggestion", move |_, _| {
+                    async_assert!(
+                        mock.matched(),
+                        "passive suggestion must hit the local endpoint, not the server"
                     )
                 }),
         )

@@ -332,6 +332,7 @@ integration_tests! {
     test_cancelled_run_agents_card_renders_cancelled_state,
     test_local_agent_loop_streams_text_reply,
     test_local_agent_loop_shell_tool_round_trip,
+    test_local_agent_loop_passive_prompt_suggestion,
 
     // Middle-click-paste is only implemented for Linux right now.
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
