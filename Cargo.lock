@@ -7799,6 +7799,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d873d7c67ce09b42110d801813efbc9364414e356be9935700d368351657487"
 
 [[package]]
+name = "local_agent"
+version = "0.0.0"
+dependencies = [
+ "aha-reqwest-eventsource",
+ "async-stream",
+ "futures",
+ "log",
+ "mockito",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+]
+
+[[package]]
 name = "local_control"
 version = "0.0.0"
 dependencies = [
@@ -15285,6 +15301,7 @@ dependencies = [
  "libc",
  "libsqlite3-sys",
  "line-ending",
+ "local_agent",
  "local_control",
  "log",
  "log-panics",
