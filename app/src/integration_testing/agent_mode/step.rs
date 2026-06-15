@@ -4,6 +4,7 @@ use std::io::{Cursor, Write};
 use std::path::Path;
 use std::time::Duration;
 
+use ai::api_keys::ApiKeyManager;
 use command::blocking::Command;
 use prost::Message;
 use warpui::integration::{AssertionOutcome, TestStep};
@@ -415,6 +416,74 @@ pub fn set_execution_profile_no_auto_execute() -> TestStep {
                 );
             });
             async_assert!(true, "Successfully updated execution profile")
+        },
+    )
+}
+
+/// Registers a custom OpenAI-compatible endpoint (BYO inference) with a single
+/// model, as if the user had added it on the AI settings page. The model's
+/// `config_key` doubles as its `LLMId`, so pass the same value to
+/// [`set_preferred_agent_mode_custom_llm`] to route agent requests to it.
+pub fn add_custom_model_endpoint(
+    endpoint_name: &str,
+    base_url: &str,
+    api_key: &str,
+    model_name: &str,
+    config_key: &str,
+) -> TestStep {
+    let endpoint_name = endpoint_name.to_owned();
+    let base_url = base_url.to_owned();
+    let api_key = api_key.to_owned();
+    let model_name = model_name.to_owned();
+    let config_key = config_key.to_owned();
+    TestStep::new(&format!("Add custom endpoint {endpoint_name}")).add_named_assertion(
+        "Register custom endpoint in ApiKeyManager",
+        move |app, _window_id| {
+            ApiKeyManager::handle(app).update(app, |manager, ctx| {
+                manager.add_custom_endpoint(
+                    endpoint_name.clone(),
+                    base_url.clone(),
+                    api_key.clone(),
+                    vec![(model_name.clone(), None, Some(config_key.clone()))],
+                    ctx,
+                );
+            });
+            async_assert!(true, "Successfully registered custom endpoint")
+        },
+    )
+}
+
+/// Sets the preferred agent mode LLM to a custom-endpoint model by its
+/// `config_key`. Unlike [`set_preferred_agent_mode_llm`], this validates the
+/// id against the user's custom LLMs (which are not part of the server-known
+/// agent mode model list). Polls until the custom LLM list has been rebuilt
+/// from the endpoint registered by [`add_custom_model_endpoint`].
+pub fn set_preferred_agent_mode_custom_llm(config_key: &str) -> TestStep {
+    let llm_id = LLMId::from(config_key);
+    TestStep::new(&format!("Set preferred agent mode LLM to custom {llm_id}")).add_named_assertion(
+        "Update preferred agent mode LLM",
+        move |app, window_id| {
+            let llm_id = llm_id.clone();
+            let terminal_view_id = terminal_view(app, window_id, 0, 0).id();
+            LLMPreferences::handle(app).update(app, |llm_preferences, ctx| {
+                let scope = ResolvedTeamScope::from_scope(
+                    &UserWorkspaces::as_ref(ctx).team_context_for_window(window_id),
+                );
+                if llm_preferences.custom_llm_info_for_id(&llm_id).is_none() {
+                    // The custom LLM list rebuilds asynchronously off the
+                    // ApiKeyManager update event; keep polling until it lands.
+                    return warpui::integration::AssertionOutcome::failure(format!(
+                        "custom LLM '{llm_id}' not (yet) known to LLMPreferences"
+                    ));
+                }
+                llm_preferences.update_preferred_agent_mode_llm(
+                    &scope,
+                    &llm_id,
+                    terminal_view_id,
+                    ctx,
+                );
+                warpui::integration::AssertionOutcome::Success
+            })
         },
     )
 }
