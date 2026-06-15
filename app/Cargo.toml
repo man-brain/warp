@@ -714,6 +714,11 @@ default = [
     "shell_widget_handoff",
     "native_shell_completions",
     "history_search_ranking_v2",
+    # Fully-local build: no Warp API traffic and no auth required (synthetic
+    # local user via skip_login), with passive prompt suggestions routed through
+    # the local multi-agent path instead of the gated-off server endpoint.
+    "skip_login",
+    "prompt_suggestions_via_maa",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.

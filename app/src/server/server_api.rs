@@ -431,6 +431,17 @@ impl ErrorExt for TranscribeError {
 }
 register_error!(TranscribeError);
 
+/// Whether all Warp API traffic must be suppressed. This is a fully-local
+/// build: the client never contacts the Warp server, so shared request helpers
+/// short-circuit here and no request is ever initiated.
+fn warp_api_disabled() -> bool {
+    true
+}
+
+fn warp_api_disabled_error() -> anyhow::Error {
+    anyhow!("Warp API is disabled in fully-local mode")
+}
+
 /// An API wrapper struct with methods to requests to warp-server.
 ///
 /// Prefer NOT adding new methods directly on this struct; instead, add to one of the existing
@@ -560,6 +571,9 @@ impl ServerApi {
     where
         QF: 'a,
     {
+        if warp_api_disabled() {
+            return Box::pin(async { Err(warp_api_disabled_error()) });
+        }
         warp_server_client::graphql_helpers::send_graphql_request(
             &self.base_client,
             operation,
@@ -575,6 +589,9 @@ impl ServerApi {
     where
         QF: 'a,
     {
+        if warp_api_disabled() {
+            return Box::pin(async { Err(warp_api_disabled_error()) });
+        }
         match Self::team_uid_header_value(team_scope) {
             Some(team_uid) => {
                 warp_server_client::graphql_helpers::send_team_scoped_graphql_request(
@@ -598,6 +615,34 @@ impl ServerApi {
             .map(|team_uid| team_uid.uid().to_string())
     }
 
+    /// Sends a GET request to a public API endpoint.
+    ///
+    /// In fully-local mode this short-circuits before any request leaves the
+    /// client; otherwise it delegates to the shared [`BaseClient`] helper.
+    ///
+    /// # Arguments
+    /// * `path` - Endpoint path relative to `/api/v1` (e.g., "agent/tasks/{task_id}")
+    async fn get_public_api<R>(&self, path: &str) -> Result<R>
+    where
+        R: serde::de::DeserializeOwned,
+    {
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
+        self.base_client.get_public_api(path).await
+    }
+
+    /// Sends a GET request to a public API endpoint and returns the raw response on success.
+    ///
+    /// Unlike [`get_public_api`], this does not attempt JSON deserialization on the
+    /// response body, allowing the caller to decode it however they need.
+    async fn get_public_api_response(&self, path: &str) -> Result<http_client::Response> {
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
+        self.base_client.get_public_api_response(path).await
+    }
+
     /// Opens an SSE stream to the agent event-push endpoint.
     ///
     /// The returned `EventSourceStream` yields `reqwest_eventsource::Event`
@@ -612,6 +657,9 @@ impl ServerApi {
         run_ids: &[String],
         since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
         debug_assert!(!run_ids.is_empty(), "run_ids must not be empty");
         let auth_token = self
             .get_or_refresh_access_token()
@@ -647,6 +695,9 @@ impl ServerApi {
         include_self: bool,
         since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
         debug_assert!(
             !ancestor_run_id.is_empty(),
             "ancestor_run_id must not be empty"
@@ -685,6 +736,9 @@ impl ServerApi {
         run_ids: &[String],
         since_sequence: i64,
     ) -> Result<http_client::EventSourceStream> {
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
         debug_assert!(!run_ids.is_empty(), "run_ids must not be empty");
         let auth_token = self
             .get_or_refresh_access_token()
@@ -735,6 +789,9 @@ impl ServerApi {
     where
         B: Serialize,
     {
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
         let auth_token = self
             .get_or_refresh_access_token()
             .await
@@ -1058,6 +1115,9 @@ impl ServerApi {
         event: impl TelemetryEvent,
         settings_snapshot: PrivacySettingsSnapshot,
     ) -> Result<()> {
+        if warp_api_disabled() {
+            return Ok(());
+        }
         let user_id = self.user_id();
         let anonymous_id = self.anonymous_id();
         self.telemetry_api
@@ -1110,6 +1170,9 @@ impl ServerApi {
         &self,
         settings_snapshot: PrivacySettingsSnapshot,
     ) -> Result<usize> {
+        if warp_api_disabled() {
+            return Ok(0);
+        }
         self.telemetry_api.flush_events(settings_snapshot).await
     }
 
@@ -1120,6 +1183,9 @@ impl ServerApi {
         path: &Path,
         settings_snapshot: PrivacySettingsSnapshot,
     ) -> Result<()> {
+        if warp_api_disabled() {
+            return Ok(());
+        }
         self.telemetry_api
             .flush_persisted_events_to_rudder(path, settings_snapshot)
             .await
@@ -1145,6 +1211,9 @@ impl ServerApi {
         team_scope: RequestTeamScope,
     ) -> Result<generate_ai_input_suggestions::GenerateAIInputSuggestionsResponseV2, AIApiError>
     {
+        if warp_api_disabled() {
+            return Err(AIApiError::Other(warp_api_disabled_error()));
+        }
         let auth_token = self.get_or_refresh_access_token().await?;
 
         let mut request_builder = self.base_client.http_client().post(format!(
@@ -1174,6 +1243,9 @@ impl ServerApi {
         request: &GetRelevantFiles,
         team_scope: RequestTeamScope,
     ) -> Result<GetRelevantFilesResponse, AIApiError> {
+        if warp_api_disabled() {
+            return Err(AIApiError::Other(warp_api_disabled_error()));
+        }
         let auth_token = self.get_or_refresh_access_token().await?;
 
         let mut request_builder = self.base_client.http_client().post(format!(
@@ -1204,6 +1276,9 @@ impl ServerApi {
         request: &GenerateAMQuerySuggestionsRequest,
         team_scope: RequestTeamScope,
     ) -> Result<generate_am_query_suggestions::GenerateAMQuerySuggestionsResponse, AIApiError> {
+        if warp_api_disabled() {
+            return Err(AIApiError::Other(warp_api_disabled_error()));
+        }
         let auth_token = self.get_or_refresh_access_token().await?;
 
         cfg_if::cfg_if! {
@@ -1243,6 +1318,9 @@ impl ServerApi {
         request: &PredictAMQueriesRequest,
         team_scope: RequestTeamScope,
     ) -> Result<PredictAMQueriesResponse, AIApiError> {
+        if warp_api_disabled() {
+            return Err(AIApiError::Other(warp_api_disabled_error()));
+        }
         let auth_token = self.get_or_refresh_access_token().await?;
         let mut request_builder = self.base_client.http_client().post(format!(
             "{}/ai/predict_am_queries",
@@ -1272,6 +1350,9 @@ impl ServerApi {
         request: &TranscribeRequest,
         team_scope: RequestTeamScope,
     ) -> Result<TranscribeResponse, TranscribeError> {
+        if warp_api_disabled() {
+            return Err(TranscribeError::Other(warp_api_disabled_error()));
+        }
         let auth_token = self.get_or_refresh_access_token().await?;
 
         let mut request_builder = self
@@ -1338,6 +1419,9 @@ impl ServerApi {
         if let Some(cached) = self.cached_server_time() {
             return Ok(cached);
         }
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
 
         let time_endpoint = format!("{}/current_time", ChannelState::server_root_url());
         log::info!("Sending server time request to {}", &time_endpoint);
@@ -1385,6 +1469,9 @@ impl ServerApi {
         include_changelogs: bool,
         is_daily: bool,
     ) -> Result<ChannelVersions> {
+        if warp_api_disabled() {
+            return Err(warp_api_disabled_error());
+        }
         let mut url = Url::parse(&ChannelState::server_root_url())
             .expect("Should not fail to parse server root URL");
         if is_daily {
@@ -1597,3 +1684,58 @@ impl SingletonEntity for ServerApiProvider {}
 #[cfg(test)]
 #[path = "server_api_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod fully_local_tests {
+    use super::*;
+    use crate::ai::predict::generate_ai_input_suggestions::GenerateAIInputSuggestionsRequest;
+    use crate::workspaces::user_workspaces::TeamlessScopeForTest;
+
+    #[test]
+    fn warp_api_is_always_disabled() {
+        assert!(warp_api_disabled(), "this is a fully-local build");
+    }
+
+    // These construct `ServerApi` in a sync context (outside any Tokio runtime)
+    // because the test-util `server_root_url()` lazily spins up a mockito server,
+    // which panics if first initialized from within a runtime. The gated methods
+    // are then driven on a current-thread runtime.
+    fn block_on<F: std::future::Future>(future: F) -> F::Output {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(future)
+    }
+
+    #[test]
+    fn rest_call_is_blocked_without_touching_the_network() {
+        let api = ServerApi::new_for_test();
+
+        // fetch_channel_versions early-returns the disabled error rather than
+        // building a request to the Warp server.
+        let result = block_on(api.fetch_channel_versions(false, false));
+
+        let err = result.expect_err("fully-local mode must block the channel-version fetch");
+        assert!(
+            err.to_string().contains("fully-local"),
+            "should be the fully-local disabled error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn ai_input_suggestions_are_blocked_in_fully_local() {
+        let api = ServerApi::new_for_test();
+        let team_scope = RequestTeamScope::from_scope(&TeamlessScopeForTest);
+
+        let result = block_on(api.generate_ai_input_suggestions(
+            &GenerateAIInputSuggestionsRequest::default(),
+            team_scope,
+        ));
+
+        assert!(
+            matches!(result, Err(AIApiError::Other(_))),
+            "fully-local mode must block AI input suggestions at the server"
+        );
+    }
+}

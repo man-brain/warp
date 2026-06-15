@@ -980,16 +980,19 @@ impl LLMPreferences {
         team_uid: Option<ServerId>,
         app: &'a AppContext,
     ) -> impl Iterator<Item = &'a LLMInfo> + use<'a> {
-        // Don't show admin-disabled models in the dropdown
+        // In fully-local mode the Warp-hosted (built-in) models can't be reached,
+        // so only custom-endpoint models are offered.
+        let hide_builtin = true;
         let routers_enabled = FeatureFlag::CustomModelRouters.is_enabled();
         UserWorkspaces::as_ref(app)
             .feature_model_choice_for_team_uid(team_uid)
             .agent_mode
             .choices
             .iter()
-            .filter(|llm| !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled)))
-            // Gate cloud/team routers behind the same flag as local routers so
-            // the entire custom-router feature is controlled by one flag.
+            // Don't show admin-disabled models in the dropdown.
+            .filter(move |llm| {
+                !hide_builtin && !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled))
+            })
             .filter(move |llm| {
                 routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
             })
@@ -1016,15 +1019,17 @@ impl LLMPreferences {
         scope: &S,
         app: &'a AppContext,
     ) -> impl Iterator<Item = &'a LLMInfo> + use<'a, S> {
-        // Don't show admin-disabled models in the dropdown
+        let hide_builtin = true;
         let routers_enabled = FeatureFlag::CustomModelRouters.is_enabled();
         UserWorkspaces::as_ref(app)
             .feature_model_choice_for_scope(scope)
             .coding
             .choices
             .iter()
-            .filter(|llm| !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled)))
-            // Gate cloud/team routers behind the same flag as local routers.
+            // Don't show admin-disabled models in the dropdown.
+            .filter(move |llm| {
+                !hide_builtin && !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled))
+            })
             .filter(move |llm| {
                 routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
             })
@@ -1038,11 +1043,14 @@ impl LLMPreferences {
         scope: &S,
         app: &'a AppContext,
     ) -> impl Iterator<Item = &'a LLMInfo> + use<'a, S> {
-        // Don't show admin-disabled models in the dropdown
+        let hide_builtin = true;
         self.get_cli_agent_available(scope.team_uid(), app)
             .choices
             .iter()
-            .filter(|llm| !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled)))
+            // Don't show admin-disabled models in the dropdown
+            .filter(move |llm| {
+                !hide_builtin && !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled))
+            })
             .chain(self.custom_llm_choices(app))
     }
 
