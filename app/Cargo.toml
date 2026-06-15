@@ -711,6 +711,11 @@ default = [
     "orchestration_unified_stack",
     "ime_marked_text",
     "ctrl_c_cancels_third_party_harness",
+    # Fully-local build: no Warp API traffic and no auth required (synthetic
+    # local user via skip_login), with passive prompt suggestions routed through
+    # the local multi-agent path instead of the gated-off server endpoint.
+    "skip_login",
+    "prompt_suggestions_via_maa",
 ]
 # Enable this feature to automatically perform heap profiling.  NOTE: This will
 # substantially slow down program execution.
