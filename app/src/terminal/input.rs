@@ -7191,6 +7191,7 @@ impl Input {
             &self.model,
         ));
         let previous_result = self.last_intelligent_autosuggestion_result.take();
+        let terminal_view_id = self.terminal_view_id;
         self.next_command_model.update(ctx, |model, ctx| {
             model.generate_next_command_suggestion(
                 block_completed,
@@ -7198,6 +7199,7 @@ impl Input {
                 completer_data,
                 block_context,
                 previous_result,
+                Some(terminal_view_id),
                 ctx,
             );
         });
@@ -9910,6 +9912,7 @@ impl Input {
             if let Some(last_user_block_completed) =
                 completer_data.last_user_block_completed.clone()
             {
+                let terminal_view_id = self.terminal_view_id;
                 self.next_command_model.update(ctx, |model, ctx| {
                     model.generate_next_command_suggestion_with_prefix(
                         Some(buffer_text),
@@ -9918,6 +9921,7 @@ impl Input {
                         completer_data,
                         None,
                         None,
+                        Some(terminal_view_id),
                         ctx,
                     );
                 });

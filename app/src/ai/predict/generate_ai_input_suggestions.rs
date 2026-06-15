@@ -2,6 +2,8 @@
 //! warp-server that serves Agent Predict.
 
 mod api;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) mod local;
 
 use std::sync::Arc;
 

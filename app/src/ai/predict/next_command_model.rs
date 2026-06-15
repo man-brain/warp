@@ -20,7 +20,7 @@ use warp_core::command::ExitCode;
 use warp_core::features::FeatureFlag;
 #[cfg(feature = "local_fs")]
 use warpui::r#async::FutureExt;
-use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
+use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use super::generate_ai_input_suggestions::{
     GenerateAIInputSuggestionsRequest, GenerateAIInputSuggestionsResponseV2, NextCommandContext,
@@ -41,7 +41,7 @@ use crate::terminal::event::UserBlockCompleted;
 use crate::terminal::input::{CompleterData, IntelligentAutosuggestionResult};
 use crate::terminal::model::session::Sessions;
 use crate::terminal::{History, HistoryEntry, TerminalModel};
-use crate::workspaces::user_workspaces::UserWorkspaces;
+use crate::workspaces::user_workspaces::{ResolvedTeamScope, UserWorkspaces};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
@@ -65,6 +65,28 @@ const ARG_GENERATOR_VALIDATION_TIMEOUT: Duration = Duration::from_millis(150);
 pub fn is_next_command_enabled(app: &warpui::AppContext) -> bool {
     AISettings::as_ref(app).is_intelligent_autosuggestions_enabled(app)
         && UserWorkspaces::as_ref(app).is_next_command_enabled()
+}
+
+/// Fetches AI input suggestions, routing to the user's custom endpoint when one
+/// was resolved (local agent loop) and otherwise to the Warp server. Resolution
+/// happens on the main thread before spawning; `local_endpoint` carries the
+/// result into the async task.
+async fn fetch_input_suggestions(
+    server_api: &ServerApi,
+    #[cfg(not(target_family = "wasm"))] local_endpoint: &Option<local_agent::LocalEndpointConfig>,
+    request: &GenerateAIInputSuggestionsRequest,
+    team_scope: RequestTeamScope,
+) -> Result<GenerateAIInputSuggestionsResponseV2, AIApiError> {
+    #[cfg(not(target_family = "wasm"))]
+    if let Some(endpoint) = local_endpoint {
+        return super::generate_ai_input_suggestions::local::generate_local_input_suggestions(
+            request, endpoint,
+        )
+        .await;
+    }
+    server_api
+        .generate_ai_input_suggestions(request, team_scope)
+        .await
 }
 
 /// Information about an autosuggestion that would have been made if purely based off history.
@@ -318,6 +340,7 @@ impl NextCommandModel {
     }
 
     /// Generates a zero-state next command suggestion immediately after a block completes.
+    #[expect(clippy::too_many_arguments)]
     pub fn generate_next_command_suggestion(
         &mut self,
         block_completed: UserBlockCompleted,
@@ -325,6 +348,7 @@ impl NextCommandModel {
         completer_data: CompleterData,
         block_context: Option<Box<BlockContext>>,
         previous_result: Option<IntelligentAutosuggestionResult>,
+        terminal_view_id: Option<EntityId>,
         ctx: &mut ModelContext<Self>,
     ) {
         // Clear the cached next command context so we don't use stale data.
@@ -337,6 +361,7 @@ impl NextCommandModel {
             completer_data,
             block_context,
             previous_result,
+            terminal_view_id,
             ctx,
         );
     }
@@ -363,6 +388,9 @@ impl NextCommandModel {
 
     /// Generates a next command suggestion with a prefix in the input.
     #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
+    // `terminal_view_id` is only consumed by the local-endpoint resolver, which
+    // is compiled out on wasm.
+    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
     #[expect(clippy::too_many_arguments)]
     pub fn generate_next_command_suggestion_with_prefix(
         &mut self,
@@ -372,13 +400,25 @@ impl NextCommandModel {
         completer_data: CompleterData,
         block_context: Option<Box<BlockContext>>,
         previous_result: Option<IntelligentAutosuggestionResult>,
+        terminal_view_id: Option<EntityId>,
         ctx: &mut ModelContext<Self>,
     ) {
         let server_api = self.server_api.clone();
+        let team_scope =
+            ResolvedTeamScope::from_scope(&self.ai_controller.as_ref(ctx).team_context(ctx));
+        // Resolve whether this prediction should run against the user's custom
+        // endpoint instead of the Warp server. Must happen here (with `ctx`)
+        // before spawning the request task.
+        #[cfg(not(target_family = "wasm"))]
+        let local_endpoint =
+            super::generate_ai_input_suggestions::local::resolve_local_input_endpoint(
+                &team_scope,
+                ctx,
+                terminal_view_id,
+            );
         let terminal_model = self.model.clone();
         let cached_next_command_context = self.cached_zerostate_next_command_context.clone();
-        let team_scope =
-            RequestTeamScope::from_scope(&self.ai_controller.as_ref(ctx).team_context(ctx));
+        let team_scope = RequestTeamScope::from_scope(&team_scope);
 
         let completion_context = completer_data.completion_session_context(ctx);
         // This is only needed if we have a prefix.
@@ -500,9 +540,14 @@ impl NextCommandModel {
                     // For zero-state next command suggestions, return the result immediately.
                     let Some(prefix) = prefix else {
                         return (
-                            server_api
-                                .generate_ai_input_suggestions(&request, team_scope)
-                                .await,
+                            fetch_input_suggestions(
+                                &server_api,
+                                #[cfg(not(target_family = "wasm"))]
+                                &local_endpoint,
+                                &request,
+                                team_scope,
+                            )
+                            .await,
                             request,
                             true,
                             start_ts_ms,
@@ -582,9 +627,14 @@ impl NextCommandModel {
                     };
 
                     // Only if we have no commands from history and no completions, use the LLM to generate a partial suggestion.
-                    let response = server_api
-                        .generate_ai_input_suggestions(&request, team_scope)
-                        .await;
+                    let response = fetch_input_suggestions(
+                        &server_api,
+                        #[cfg(not(target_family = "wasm"))]
+                        &local_endpoint,
+                        &request,
+                        team_scope,
+                    )
+                    .await;
                     (
                         response,
                         request,
