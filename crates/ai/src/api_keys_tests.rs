@@ -267,20 +267,21 @@ fn custom_endpoint_definitions_reject_duplicate_model_config_keys() {
 }
 
 #[test]
-fn custom_endpoint_url_requires_public_https() {
+fn custom_endpoint_url_allows_local_http_and_requires_public_https() {
     for valid in [
         "https://api.example.com/v1",
         "https://openrouter.ai/api/v1",
         "https://8.8.8.8/v1",
+        "http://localhost:8080/v1",
+        "http://127.0.0.1/v1",
+        "http://10.0.0.1/v1",
+        "http://[::1]/v1",
     ] {
         assert_eq!(validate_custom_endpoint_url(valid), Ok(()));
     }
     for invalid in [
         "http://api.example.com/v1",
-        "https://localhost:8080",
-        "https://127.0.0.1/v1",
-        "https://10.0.0.1/v1",
-        "https://[::1]/v1",
+        "ftp://localhost/v1",
         "not a url",
     ] {
         assert!(
