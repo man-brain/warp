@@ -6360,6 +6360,14 @@ impl Input {
         }
     }
 
+    /// The prompt text of the currently shown passive prompt-suggestion banner,
+    /// if any. Used by integration tests to assert a suggestion appeared.
+    pub fn prompt_suggestion_banner_prompt(&self) -> Option<String> {
+        self.prompt_suggestions_banner_state
+            .as_ref()
+            .map(|banner_state| banner_state.prompt_suggestion.prompt.clone())
+    }
+
     // Auto-attach the last block for this query.
     fn auto_attach_last_block_for_query(&mut self, ctx: &mut ViewContext<Self>) {
         let last_block_id = {

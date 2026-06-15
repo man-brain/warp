@@ -441,6 +441,7 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
 
     register_test!(test_local_agent_loop_streams_text_reply);
     register_test!(test_local_agent_loop_shell_tool_round_trip);
+    register_test!(test_local_agent_loop_passive_prompt_suggestion);
 
     register_test!(test_selection_first_to_last_through_ai_simple);
     register_test!(test_copy_on_select_first_to_last_through_ai_simple);
