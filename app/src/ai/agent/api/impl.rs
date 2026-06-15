@@ -141,6 +141,32 @@ pub async fn generate_multi_agent_output(
         mcp_context: params.mcp_context.map(Into::into),
     };
 
+    #[cfg(not(target_family = "wasm"))]
+    match super::local_route::route_request(&request) {
+        super::local_route::RequestDisposition::Local(route) => {
+            let stream = super::local_adapter::generate_local_agent_output(request, route);
+            let output_stream = stream.take_until(cancellation_rx);
+            return Ok(Box::pin(output_stream));
+        }
+        // Hard guard: with the local agent loop enabled, nothing may reach the
+        // Warp API server. A request that didn't resolve locally fails loudly
+        // instead of leaking to the server.
+        super::local_route::RequestDisposition::BlockedFromServer(reason) => {
+            let (tx, rx) = async_channel::unbounded();
+            let _ = tx
+                .send(Err(Arc::new(crate::server::server_api::AIApiError::Other(
+                    anyhow::anyhow!(
+                        "Local agent loop is enabled, so this request was not sent to \
+                     the Warp server: {reason}. Select a custom endpoint model, or \
+                     disable the local agent loop to use Warp-hosted models."
+                    ),
+                ))))
+                .await;
+            return Ok(Box::pin(rx));
+        }
+        super::local_route::RequestDisposition::Server => {}
+    }
+
     let response_stream = warp_multi_agent_client::generate_multi_agent_output(
         server_api.as_ref(),
         &request,

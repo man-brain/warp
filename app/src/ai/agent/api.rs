@@ -2,6 +2,10 @@ pub(crate) mod convert_conversation;
 mod convert_from;
 mod convert_to;
 mod r#impl;
+#[cfg(not(target_family = "wasm"))]
+mod local_adapter;
+#[cfg(not(target_family = "wasm"))]
+mod local_route;
 
 use std::path::Path;
 use std::pin::Pin;
