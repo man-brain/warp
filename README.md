@@ -1,33 +1,105 @@
 <a href="https://www.warp.dev">
     <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
 </a>
-&nbsp;
-<p align="center">
-  <a href="https://www.warp.dev"><img height="20" alt="Built with Warp" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Built-With-Warp-Export@2x.png" /></a>
-  &nbsp;
-  <a href="https://oz.warp.dev"><img height="20" alt="Powered by Oz" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/main/Github/Powered-By-Oz-Export@2x.png" /></a>
-</p>
-
-<p align="center">
-  <a href="https://www.warp.dev">Website</a>
-  ·
-  <a href="https://www.warp.dev/code">Code</a>
-  ·
-  <a href="https://www.warp.dev/agents">Agents</a>
-  ·
-  <a href="https://www.warp.dev/terminal">Terminal</a>
-  ·
-  <a href="https://www.warp.dev/drive">Drive</a>
-  ·
-  <a href="https://docs.warp.dev">Docs</a>
-  ·
-  <a href="https://www.warp.dev/blog/how-warp-works">How Warp Works</a>
-</p>
-
-> [!NOTE]
-> OpenAI is the founding sponsor of the new, open-source Warp repository, and the new agentic management workflows are powered by GPT models.
 
 <h1></h1>
+
+## About this fork
+
+This is a **fully-local fork of [Warp](https://www.warp.dev)**. It keeps Warp's
+terminal and agentic development environment, but removes the dependency on
+Warp's backend:
+
+- **No Warp API.** The client never talks to Warp's servers for AI.
+- **No authentication.** There is no login/account step — the app starts
+  straight into a usable session.
+- **The agent loop runs locally.** Instead of delegating the multi-agent loop to
+  Warp's backend, this fork drives the loop on your machine and talks directly
+  to an OpenAI-compatible API.
+
+### AI features require a custom endpoint
+
+Because nothing is served by Warp, **AI features only work once you configure a
+custom OpenAI-compatible endpoint.** Point it at any compatible server — local
+(Ollama, LM Studio, vLLM, llama.cpp's server, …) or remote (OpenAI, OpenRouter,
+or any gateway that speaks the OpenAI API).
+
+Configure it in **Settings → AI → Custom inference / model providers**: set the
+base URL (e.g. `http://localhost:11434/v1`), an API key if your endpoint
+requires one, and the model slug to use. Loopback and private-network hosts are
+allowed (over plain HTTP for local hosts, HTTPS for public ones). Until an
+endpoint is configured, the terminal works normally but agent/AI actions have
+nowhere to go.
+
+## Building and running this fork
+
+The build is driven by the scripts in [`script/`](script). This fork builds as
+the **OSS channel**, which needs no Warp-internal access.
+
+### 1. One-time setup
+
+Install the toolchain and build dependencies (Rust, `protoc`, GUI/runtime libs,
+and the bundler):
+
+```bash
+./script/bootstrap
+```
+
+> The `cargo` toolchain installs under `~/.cargo`; make sure `~/.cargo/bin` is on
+> your `PATH` (`export PATH="$HOME/.cargo/bin:$PATH"`).
+
+See [WARP.md](WARP.md) for the full engineering guide (coding style, testing,
+and platform notes).
+
+### 2. Debug build — for development & debugging
+
+Build and run straight from source with debug assertions. This is the fastest
+edit/run loop and what you want while hacking on the fork:
+
+```bash
+./script/run
+```
+
+### 3. Release build — a real, installed app for daily use
+
+For everyday use you want an optimized, packaged application you launch from your
+desktop — not a binary you start from another terminal. Build a release bundle
+of the OSS channel:
+
+```bash
+./script/bundle --channel oss
+```
+
+**Linux.** To get a proper desktop entry (launcher icon, system integration) on
+Debian/Ubuntu, build a `.deb` instead and install it system-wide:
+
+```bash
+./script/bundle --channel oss --packages deb --release-tag v0.1.0
+sudo dpkg -i target/release-lto/bundle/linux/warp-terminal-oss_0.1.0_amd64.deb
+```
+
+After that, **WarpOss** appears in your application launcher like any other
+installed app. (`--packages` also accepts `rpm` and `arch`.)
+
+**macOS.** `./script/bundle --channel oss` produces a `.app` bundle (and a
+matching `.dmg`) at:
+
+```
+target/release-lto/bundle/osx/WarpOss.app
+target/release-lto/bundle/osx/WarpOss.dmg
+```
+
+Copy the app into `/Applications` and launch it normally:
+
+```bash
+cp -R target/release-lto/bundle/osx/WarpOss.app /Applications/
+```
+
+(Or open `WarpOss.dmg` and drag **WarpOss** into Applications.)
+
+---
+
+The rest of this README is inherited from upstream Warp.
 
 ## About
 
