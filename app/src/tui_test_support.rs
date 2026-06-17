@@ -39,6 +39,7 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::code_review::git_repo_model::GitRepoModels;
 use crate::network::NetworkStatus;
 use crate::persistence::PersistenceWriter;
+use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::experiments::ServerExperiments;
 use crate::server::ids::ServerId;
 use crate::server::server_api::ServerApiProvider;
@@ -67,6 +68,7 @@ use crate::user_config::WarpConfig;
 #[cfg(feature = "voice_input")]
 use crate::voice::transcriber::VoiceTranscriber;
 use crate::workspaces::team::{MembershipRole, Team, TeamMember};
+use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
 use crate::workspaces::workspace::Workspace;
 
@@ -367,8 +369,16 @@ pub fn register_tui_session_view_test_singletons(app: &mut warpui::App) {
         };
         UserWorkspaces::mock(team_client, workspace_client, vec![], ctx)
     });
+    app.add_singleton_model(TeamTesterStatus::new);
     app.add_singleton_model(SyncQueue::mock);
     app.add_singleton_model(CloudModel::mock);
+    app.add_singleton_model(|ctx| {
+        UpdateManager::new(
+            None,
+            ServerApiProvider::as_ref(ctx).get_cloud_objects_client(),
+            ctx,
+        )
+    });
     app.add_singleton_model(CloudEnvironmentCatalog::new);
     app.add_singleton_model(|_| crate::appearance::Appearance::mock());
 

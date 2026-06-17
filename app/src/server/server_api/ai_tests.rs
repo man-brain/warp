@@ -2,13 +2,17 @@ use chrono::{TimeZone, Utc};
 use futures::executor::block_on;
 use itertools::Itertools;
 use mockito::{Matcher, Server};
-use warp_server_client::base_client::{CLOUD_AGENT_ID_HEADER, TEAM_UID_HEADER};
+use warp_server_client::base_client::CLOUD_AGENT_ID_HEADER;
+#[cfg(not(feature = "skip_login"))]
+use warp_server_client::base_client::TEAM_UID_HEADER;
 
 use super::super::ServerApi;
+#[cfg(not(feature = "skip_login"))]
+use super::{AIClient, CreateAgentRequest};
 use super::{
-    AIClient, AgentMessageHeader, AgentRunEvent, AgentSource, AmbientAgentTaskState, Artifact,
+    AgentMessageHeader, AgentRunEvent, AgentSource, AmbientAgentTaskState, Artifact,
     ArtifactDownloadResponse, ArtifactType, CONNECTED_SELF_HOSTED_WORKERS_PATH,
-    ConnectedSelfHostedWorker, CreateAgentRequest, ExecutionLocation, ForkConversationResponse,
+    ConnectedSelfHostedWorker, ExecutionLocation, ForkConversationResponse,
     ListConnectedSelfHostedWorkersResponse, ListRunsResponse, PrepareAttachmentUploadsResponse,
     ReadAgentMessageResponse, RunFollowupRequest, RunSortBy, RunSortOrder, SpawnAgentRequest,
     TaskGitCredentialsError, TaskListFilter, UploadFieldValue, UserQueryMode,
@@ -16,15 +20,20 @@ use super::{
     is_unknown_git_credential_schema_error,
 };
 use crate::notebooks::NotebookId;
+#[cfg(not(feature = "skip_login"))]
 use crate::server::ids::ServerId;
 use crate::server::server_api::presigned_upload::upload_to_target;
+#[cfg(not(feature = "skip_login"))]
 use crate::server::team_scope::RequestTeamScope;
+#[cfg(not(feature = "skip_login"))]
 use crate::workspaces::user_workspaces::{TeamContextForOperation, TeamlessScopeForTest};
 
+#[cfg(not(feature = "skip_login"))]
 fn request_scope_for_team(team_uid: ServerId) -> RequestTeamScope {
     RequestTeamScope::from_scope(&TeamContextForOperation::new_for_test(team_uid))
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_agents_sends_selected_team_header() {
     let team_uid = ServerId::from(7);
@@ -44,6 +53,7 @@ fn list_agents_sends_selected_team_header() {
     assert!(agents.is_empty());
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn create_agent_sends_selected_team_header() {
     let team_uid = ServerId::from(8);
@@ -75,6 +85,7 @@ fn create_agent_sends_selected_team_header() {
     assert_eq!(agent.uid, "agent-1");
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_skills_sends_selected_team_header() {
     let team_uid = ServerId::from(9);
@@ -94,6 +105,7 @@ fn list_skills_sends_selected_team_header() {
     assert!(skills.is_empty());
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_memory_stores_sends_selected_team_header() {
     let team_uid = ServerId::from(10);
@@ -113,6 +125,7 @@ fn list_memory_stores_sends_selected_team_header() {
     assert!(stores.is_empty());
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_agents_omits_team_header_for_personal_scope() {
     let _request = {
@@ -157,6 +170,7 @@ fn ambient_agent_headers_for_task_overrides_existing_cloud_agent_header() {
     );
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_agent_runs_sends_selected_team_header() {
     let team_uid = ServerId::from(123);
@@ -178,6 +192,7 @@ fn list_agent_runs_sends_selected_team_header() {
     .unwrap();
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_agent_runs_omits_team_header_for_teamless_scope() {
     let scope = RequestTeamScope::from_scope(&TeamlessScopeForTest);
@@ -263,6 +278,7 @@ fn connected_self_hosted_workers_path_uses_public_api_route() {
     );
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_connected_self_hosted_workers_sends_selected_team_header() {
     let team_uid = ServerId::from(124);

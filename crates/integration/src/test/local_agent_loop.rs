@@ -113,7 +113,10 @@ fn leaked_stub_server() -> &'static mut mockito::ServerGuard {
 /// tests therefore assert "at least N" rather than exact request counts; the
 /// passive flow has its own dedicated test.
 fn builder_routing_to(server_url: &str) -> Builder {
-    FeatureFlag::CustomInferenceEndpoints.set_enabled(true);
+    // The fullscreen Agent View entered by `enter_agent_view()` is gated behind
+    // this flag; without it the `StartNewAgentConversation` binding (cmd-enter /
+    // ctrl-shift-enter) isn't registered and the view never opens.
+    FeatureFlag::AgentView.set_enabled(true);
 
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
@@ -263,7 +266,6 @@ fn suggest_prompt_tool_call_sse(prompt: &str, label: &str) -> String {
 /// banner. This is the path that the unit tests bypass (they drive the adapter
 /// directly), so it guards the MAA-vs-legacy selection and the wiring.
 pub fn test_local_agent_loop_passive_prompt_suggestion() -> Builder {
-    FeatureFlag::CustomInferenceEndpoints.set_enabled(true);
     // Route passive suggestions through the local multi-agent path.
     FeatureFlag::PromptSuggestionsViaMAA.set_enabled(true);
 

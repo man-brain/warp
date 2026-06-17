@@ -8,6 +8,8 @@ fn custom_providers() -> api::request::settings::CustomModelProviders {
             api::request::settings::custom_model_providers::CustomModelProvider {
                 base_url: "https://llm.example.com/v1".to_string(),
                 api_key: "sk-test".to_string(),
+                // Local fork endpoints are OpenAI-compatible (the default schema).
+                schema: Default::default(),
                 models: vec![
                     api::request::settings::custom_model_providers::CustomModel {
                         slug: "llama-3.3-70b".to_string(),

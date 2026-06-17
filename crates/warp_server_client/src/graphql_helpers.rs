@@ -133,6 +133,9 @@ where
     })
 }
 
-#[cfg(test)]
+// Every test in this module exercises an authenticated `send_graphql_request`
+// path, which `skip_login` (fully-local mode) deliberately fails — so the module
+// is compiled out under that feature.
+#[cfg(all(test, not(feature = "skip_login")))]
 #[path = "graphql_helpers_tests.rs"]
 mod tests;

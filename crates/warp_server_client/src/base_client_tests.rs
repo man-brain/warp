@@ -1,16 +1,23 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+#[cfg(not(feature = "skip_login"))]
+use std::sync::Mutex;
 
+#[cfg(not(feature = "skip_login"))]
 use cloud_objects::ids::ServerId;
 use futures::executor::block_on;
+#[cfg(not(feature = "skip_login"))]
 use warp_core::channel::ChannelState;
 use warp_server_auth::auth_state::AuthState;
 
+#[cfg(not(feature = "skip_login"))]
+use super::TEAM_UID_HEADER;
 use super::{
     AGENT_SOURCE_HEADER, AMBIENT_WORKLOAD_TOKEN_HEADER, AmbientHeaderPolicy,
     AuthenticatedGraphqlConfig, BaseClient, CLOUD_AGENT_ID_HEADER, GraphqlRoutingConfig,
-    HeaderOverride, TEAM_UID_HEADER,
+    HeaderOverride,
 };
+#[cfg(not(feature = "skip_login"))]
 use crate::auth::{AuthClient, AuthClientImpl};
 
 struct StaticIapTokenProvider;
@@ -113,6 +120,9 @@ fn ambient_policy_supports_inherit_override_and_omit() {
     assert!(omitted.is_empty());
 }
 
+// Resolves credentials via `graphql_request_options(None)`, which `skip_login`
+// (fully-local mode) deliberately fails, so this test does not apply there.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn authenticated_graphql_options_include_configured_and_ambient_headers() {
     let client = client();
@@ -141,6 +151,9 @@ fn authenticated_graphql_options_include_configured_and_ambient_headers() {
     );
 }
 
+// Resolves credentials via `graphql_request_options(None)`, which `skip_login`
+// (fully-local mode) deliberately fails, so this test does not apply there.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn authenticated_graphql_configuration_cannot_override_base_client_owned_headers() {
     let (event_sender, _) = async_channel::unbounded();
@@ -188,6 +201,7 @@ fn authenticated_graphql_configuration_cannot_override_base_client_owned_headers
     );
 }
 
+#[cfg(not(feature = "skip_login"))]
 fn api_key_client(path_prefix: &str) -> (AuthClientImpl, Arc<Mutex<Option<String>>>) {
     let observed_team_uid = Arc::new(Mutex::new(None));
     let observed_team_uid_for_request = observed_team_uid.clone();
@@ -223,6 +237,7 @@ fn api_key_client(path_prefix: &str) -> (AuthClientImpl, Arc<Mutex<Option<String
     )
 }
 
+#[cfg(not(feature = "skip_login"))]
 fn mock_api_key_list(path_prefix: &str) -> mockito::Mock {
     let mut server = ChannelState::mock_server();
     server
@@ -238,6 +253,7 @@ fn mock_api_key_list(path_prefix: &str) -> mockito::Mock {
         .create()
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_api_keys_sends_selected_team_header() {
     let team_uid = "abcdefghijklmnopqrstuv";
@@ -252,6 +268,7 @@ fn list_api_keys_sends_selected_team_header() {
     request.assert();
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn list_api_keys_omits_team_header_when_unscoped() {
     let request = mock_api_key_list("/api-key-unscoped");

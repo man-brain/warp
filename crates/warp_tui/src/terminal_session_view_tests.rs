@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ai::LLMProvider;
-use ai::api_keys::ApiKeyManager;
+use ai::api_keys::{ApiKeyManager, CustomEndpointParams, CustomEndpointSchema};
 use chrono::NaiveDate;
 use instant::Instant;
 use string_offset::CharOffset;
@@ -25,8 +25,8 @@ use warp::tui_export::{
     AskUserQuestionType, BlockPadding, BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
     ConversationStatus, ConversationUsageTotals, Harness, InputTypeAutoDetectionSource, LLMId,
     LLMPreferences, LinkedWorkflowData, LongRunningCommandControlState, MessageId,
-    OutputStatusUpdateCallback, ParsedSlashCommandInput, PtyIntent, PtyIntentEvent,
-    ResolvedTeamScope, ServerOutputId, Session, Shared, SizeInfo, SizeUpdate,
+    OutputStatusUpdateCallback, ParsedSlashCommandInput, PtyIntent, PtyIntentEvent, ServerOutputId,
+    Session, Shared, SizeInfo, SizeUpdate,
     SlashCommandDataSource as _, SlashCommandKind, TaskId, TranscriptScope, TuiMcpAction,
     TuiMcpServerId, TuiOnboardingMarker, TuiOnboardingMarkers, TuiUpArrowHistoryItemKind,
     UserTakeOverReason, UserWorkspaces, WarpConfig, WarpConfigUpdateEvent,
@@ -1655,19 +1655,33 @@ fn toggle_model_menu_action_opens_and_closes_the_inline_model_menu() {
     });
 }
 
+fn add_custom_model_for_test(app: &mut App, id: &str, display_name: &str) -> LLMId {
+    let id = LLMId::from(id);
+    ApiKeyManager::handle(app).update(app, |api_key_manager, ctx| {
+        api_key_manager.add_custom_endpoint(
+            CustomEndpointParams {
+                name: format!("{display_name} endpoint"),
+                url: "http://localhost.invalid/v1".to_owned(),
+                api_key: "test-key".to_owned(),
+                models: vec![(
+                    id.to_string(),
+                    Some(display_name.to_owned()),
+                    Some(id.to_string()),
+                )],
+                schema: CustomEndpointSchema::default(),
+            },
+            ctx,
+        );
+    });
+    id
+}
+
 #[test]
 fn accepted_model_only_changes_the_current_session() {
     App::test((), |mut app| async move {
         let fixture = focus_test_fixture(&mut app);
-        LLMPreferences::handle(&app).update(&mut app, |preferences, ctx| {
-            let scope = ResolvedTeamScope::from_scope(
-                &UserWorkspaces::teamless_context_resolver_for_test()(ctx),
-            );
-            let mut alternate = preferences.get_default_base_model(&scope, ctx).clone();
-            alternate.id = "tui-session-override".into();
-            alternate.display_name = "TUI session override".to_owned();
-            preferences.add_agent_mode_model_for_test(&scope, alternate, ctx);
-        });
+        let alternate_id =
+            add_custom_model_for_test(&mut app, "tui-session-override", "TUI session override");
         let (first_view, _) = add_focus_test_session(&mut app, &fixture, true);
         let (second_view, _) = add_focus_test_session(&mut app, &fixture, false);
         let (profile_default_id, alternate_id) = app.read(|ctx| {
@@ -1679,7 +1693,7 @@ fn accepted_model_only_changes_the_current_session() {
                 .clone();
             let alternate_id = preferences
                 .get_base_llm_choices_for_agent_mode(&scope, ctx)
-                .find(|model| model.id != profile_default_id && model.disable_reason.is_none())
+                .find(|model| model.id == alternate_id && model.disable_reason.is_none())
                 .expect("test model catalog should include an alternate model")
                 .id
                 .clone();
@@ -1721,7 +1735,18 @@ fn accepted_model_only_changes_the_current_session() {
 fn model_menu_labels_the_profile_default_model() {
     App::test((), |mut app| async move {
         let fixture = focus_test_fixture(&mut app);
+        let profile_default_id =
+            add_custom_model_for_test(&mut app, "tui-profile-default", "TUI profile default");
         let (view, _) = add_focus_test_session(&mut app, &fixture, true);
+        let terminal_surface_id = view.read(&app, |view, _| view.terminal_surface_id);
+        let persisted = LLMPreferences::handle(&app).update(&mut app, |preferences, ctx| {
+            preferences.update_active_profile_base_model(
+                &profile_default_id,
+                Some(terminal_surface_id),
+                ctx,
+            )
+        });
+        assert!(persisted);
         view.update(&mut app, |view, ctx| {
             view.model_menu.update(ctx, |menu, ctx| menu.open(ctx));
         });

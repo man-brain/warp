@@ -122,6 +122,8 @@ fn endpoint(name: &str, url: &str, key: &str, models: &[(&str, &str)]) -> Custom
                 config_key: config_key.to_string(),
             })
             .collect(),
+        // Local fork endpoints are OpenAI-compatible (the default schema).
+        schema: Default::default(),
     }
 }
 

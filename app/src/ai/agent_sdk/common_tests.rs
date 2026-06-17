@@ -1,12 +1,15 @@
 use std::collections::HashMap;
+#[cfg(not(feature = "skip_login"))]
 use std::sync::Arc;
 
 use warp_cli::environment::EnvironmentCreateArgs;
 use warpui::App;
 
+#[cfg(not(feature = "skip_login"))]
+use super::validate_agent_mode_base_model_id_for_scope;
 use super::{
     EnvironmentChoice, classify_agent_mode_base_model_id, parse_ambient_task_id,
-    validate_agent_mode_base_model_id, validate_agent_mode_base_model_id_for_scope,
+    validate_agent_mode_base_model_id,
 };
 use crate::LaunchMode;
 use crate::ai::cloud_environments::{
@@ -27,15 +30,19 @@ use crate::network::NetworkStatus;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ServerId, SyncId};
 use crate::server::server_api::ServerApiProvider;
+#[cfg(not(feature = "skip_login"))]
 use crate::server::server_api::team::MockTeamClient;
+#[cfg(not(feature = "skip_login"))]
 use crate::server::server_api::workspace::MockWorkspaceClient;
 use crate::server::sync_queue::SyncQueue;
 use crate::test_util::settings::initialize_settings_for_tests;
+#[cfg(not(feature = "skip_login"))]
 use crate::workspaces::team::{Team, TeamVisibility};
 use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::user_workspaces::{
     TeamContextForOperation, TeamlessScopeForTest, UserWorkspaces,
 };
+#[cfg(not(feature = "skip_login"))]
 use crate::workspaces::workspace::{Workspace, WorkspaceUid};
 fn environment_with_owner(
     sync_id: SyncId,
@@ -257,6 +264,7 @@ fn available(default_id: &str, choices: Vec<LLMInfo>) -> AvailableLLMs {
     AvailableLLMs::new(default_id.into(), choices, None).expect("choices are non-empty")
 }
 
+#[cfg(not(feature = "skip_login"))]
 fn models_with_agent_model(id: &str) -> ModelsByFeature {
     ModelsByFeature {
         agent_mode: available(id, vec![server_llm(id)]),
@@ -266,6 +274,7 @@ fn models_with_agent_model(id: &str) -> ModelsByFeature {
     }
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn model_validation_reads_the_selected_team_catalog() {
     App::test((), |mut app| async move {

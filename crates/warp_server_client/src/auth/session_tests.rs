@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
+// Only used by the refresh-path tests below, which are compiled out under
+// `skip_login` (fully-local mode).
+#[cfg(not(feature = "skip_login"))]
 use chrono::Utc;
 use futures::executor::block_on;
 use warp_server_auth::auth_state::AuthState;
-use warp_server_auth::credentials::{AuthToken, Credentials, LoginToken};
+#[cfg(not(feature = "skip_login"))]
+use warp_server_auth::credentials::AuthToken;
+use warp_server_auth::credentials::{Credentials, LoginToken};
+#[cfg(not(feature = "skip_login"))]
 use warp_server_auth::user::FirebaseAuthTokens;
 
 use super::AuthSession;
@@ -20,6 +26,9 @@ fn session_with_state(
     (session, event_receiver)
 }
 
+// In fully-local mode (`skip_login`), `get_or_refresh_access_token` deliberately
+// fails all authenticated requests, so these refresh-path tests don't apply.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn device_authorization_uses_warp_agent_cli_client() {
     let client = AuthSession::create_oauth_client();
@@ -27,6 +36,7 @@ fn device_authorization_uses_warp_agent_cli_client() {
     assert_eq!(client.client_id().as_str(), "warp-agent-cli");
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn bearer_credentials_are_returned_without_session_refresh_events() {
     let auth_state = Arc::new(AuthState::new_logged_out_for_test());
@@ -40,6 +50,7 @@ fn bearer_credentials_are_returned_without_session_refresh_events() {
     assert!(event_receiver.try_recv().is_err());
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn unexpired_firebase_credentials_return_cached_token_without_refresh_events() {
     let auth_state = Arc::new(AuthState::new_logged_out_for_test());

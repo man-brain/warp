@@ -355,6 +355,6 @@ impl ManagedSecretsClient for ServerApi {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "skip_login")))]
 #[path = "managed_secrets_tests.rs"]
 mod tests;
