@@ -1,6 +1,9 @@
 use std::time::Duration;
 
 use warp::features::FeatureFlag;
+use warp::integration_testing::agent_mode::{
+    add_custom_model_endpoint, set_preferred_agent_mode_custom_llm,
+};
 use warp::integration_testing::clipboard::write_to_clipboard;
 use warp::integration_testing::input::{
     AutosuggestionState, assert_autosuggestion_state, input_contains_string, input_is_empty,
@@ -122,10 +125,26 @@ pub fn test_inline_model_selector_restores_prompt_on_dismissal() -> Builder {
 
 pub fn test_inline_model_selector_restores_prompt_on_model_selection() -> Builder {
     FeatureFlag::RestorePromptOnInlineModelSelectorSearch.set_enabled(true);
+    // Fully-local mode hides the built-in Warp-hosted models, so the inline
+    // selector only lists custom-endpoint models. Register one (and wait for it
+    // to load) so there is a model to actually select — searching for it still
+    // parks the typed prompt, which is what this test asserts gets restored.
 
+    const CONFIG_KEY: &str = "11111111-2222-3333-4444-555555555555";
     let original_prompt = "summarize this output without losing details";
     new_builder()
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
+        .with_step(add_custom_model_endpoint(
+            "Stub OpenAI endpoint",
+            // Never contacted: selecting a model only updates preferences.
+            "http://stub.invalid/v1",
+            "integration-test-key",
+            "stub-model",
+            CONFIG_KEY,
+        ))
+        // Polls until the custom model is registered with LLMPreferences, so it
+        // is present in the selector before we open it.
+        .with_step(set_preferred_agent_mode_custom_llm(CONFIG_KEY))
         .with_step(
             new_step_with_default_assertions("Type prompt before opening model selector")
                 .with_typed_characters(&[original_prompt])
@@ -137,10 +156,10 @@ pub fn test_inline_model_selector_restores_prompt_on_model_selection() -> Builde
         .with_step(open_inline_model_selector_from_chip())
         .with_step(
             new_step_with_default_assertions("Type model search")
-                .with_typed_characters(&["auto"])
+                .with_typed_characters(&["stub"])
                 .add_named_assertion(
                     "Model search text is in the input",
-                    input_contains_string(0, "auto".to_owned()),
+                    input_contains_string(0, "stub".to_owned()),
                 ),
         )
         .with_step(

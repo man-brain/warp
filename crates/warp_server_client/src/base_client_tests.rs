@@ -4,10 +4,12 @@ use std::sync::Arc;
 use futures::executor::block_on;
 use warp_server_auth::auth_state::AuthState;
 
+#[cfg(not(feature = "skip_login"))]
+use super::TEAM_UID_HEADER;
 use super::{
     AGENT_SOURCE_HEADER, AMBIENT_WORKLOAD_TOKEN_HEADER, AmbientHeaderPolicy,
     AuthenticatedGraphqlConfig, BaseClient, CLOUD_AGENT_ID_HEADER, GraphqlRoutingConfig,
-    HeaderOverride, TEAM_UID_HEADER,
+    HeaderOverride,
 };
 
 struct StaticIapTokenProvider;
@@ -110,6 +112,9 @@ fn ambient_policy_supports_inherit_override_and_omit() {
     assert!(omitted.is_empty());
 }
 
+// Resolves credentials via `graphql_request_options(None)`, which `skip_login`
+// (fully-local mode) deliberately fails, so this test does not apply there.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn authenticated_graphql_options_include_configured_and_ambient_headers() {
     let client = client();
@@ -138,6 +143,9 @@ fn authenticated_graphql_options_include_configured_and_ambient_headers() {
     );
 }
 
+// Resolves credentials via `graphql_request_options(None)`, which `skip_login`
+// (fully-local mode) deliberately fails, so this test does not apply there.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn team_scoped_graphql_options_attach_team_header_when_scope_is_supplied() {
     let client = client();
@@ -152,6 +160,9 @@ fn team_scoped_graphql_options_attach_team_header_when_scope_is_supplied() {
     );
 }
 
+// Resolves credentials via `graphql_request_options_with_team`, which `skip_login`
+// deliberately fails, so this test does not apply in fully-local mode.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn team_scoped_graphql_options_omit_team_header_when_scope_is_absent() {
     let client = client();
@@ -161,6 +172,9 @@ fn team_scoped_graphql_options_omit_team_header_when_scope_is_absent() {
     assert!(!options.headers.contains_key(TEAM_UID_HEADER));
 }
 
+// Resolves credentials via `graphql_request_options`, which `skip_login`
+// deliberately fails, so this test does not apply in fully-local mode.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn authenticated_graphql_configuration_cannot_override_base_client_owned_headers() {
     let (event_sender, _) = async_channel::unbounded();

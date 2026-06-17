@@ -89,12 +89,18 @@ integration_tests! {
     test_pwsh_vi_edit_mode_does_not_corrupt_commands,
 
     // Tests of ssh wrapper logic from bootstrap script.
+    // Disabled in this fork: they SSH into a remote GCP VM over an IAP tunnel,
+    // which isn't reachable (or authorized) from local/hermetic test runs.
+    #[ignore = "Requires a remote GCP VM over an IAP tunnel; unreachable locally"]
     test_ssh_wrapper_into_bash,
+    #[ignore = "Requires a remote GCP VM over an IAP tunnel; unreachable locally"]
     test_ssh_wrapper_into_zsh,
     // TODO(vorporeal): Reenable fish once we actually support it as a remote
     // shell.
     // test_ssh_into_fish,
+    #[ignore = "Requires a remote GCP VM over an IAP tunnel; unreachable locally"]
     test_ssh_into_sh,
+    #[ignore = "Requires a remote GCP VM over an IAP tunnel; unreachable locally"]
     test_ssh_into_ash,
 
     // Tests of remote server behavior.

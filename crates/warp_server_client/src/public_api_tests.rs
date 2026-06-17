@@ -7,10 +7,11 @@ use warp_server_auth::auth_state::AuthState;
 
 use super::HttpStatusError;
 use crate::auth::AuthEvent;
-use crate::base_client::{
-    AGENT_SOURCE_HEADER, AuthenticatedGraphqlConfig, BaseClient, CLOUD_AGENT_ID_HEADER,
-    GraphqlRoutingConfig,
-};
+// Only referenced by the authenticated-request tests below, which are compiled
+// out under `skip_login` (fully-local mode).
+#[cfg(not(feature = "skip_login"))]
+use crate::base_client::{AGENT_SOURCE_HEADER, CLOUD_AGENT_ID_HEADER};
+use crate::base_client::{AuthenticatedGraphqlConfig, BaseClient, GraphqlRoutingConfig};
 struct EmptyIapTokenProvider;
 
 impl http_client::iap::IapTokenProvider for EmptyIapTokenProvider {
@@ -45,6 +46,10 @@ fn base_client_with_auth(
     )
 }
 
+// The `get_public_api` tests below issue an authenticated request, which
+// `skip_login` (fully-local mode) deliberately fails before it is sent — so they
+// are compiled out under that feature.
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn public_api_get_deserializes_successful_response() {
     let _request = {
@@ -63,6 +68,7 @@ fn public_api_get_deserializes_successful_response() {
     assert_eq!(response, serde_json::json!({ "value": "success" }));
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn public_api_get_sends_bearer_auth() {
     let _request = {
@@ -81,6 +87,7 @@ fn public_api_get_sends_bearer_auth() {
     block_on(base_client.get_public_api::<serde_json::Value>("test/bearer-auth")).unwrap();
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn public_api_get_inherits_ambient_headers() {
     let _request = {
@@ -103,6 +110,7 @@ fn public_api_get_inherits_ambient_headers() {
     block_on(base_client.get_public_api::<serde_json::Value>("test/ambient-headers")).unwrap();
 }
 
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn ordinary_public_api_failure_preserves_shared_status_error() {
     let _request = {
@@ -126,6 +134,7 @@ fn ordinary_public_api_failure_preserves_shared_status_error() {
     );
     assert!(event_receiver.try_recv().is_err());
 }
+#[cfg(not(feature = "skip_login"))]
 #[test]
 fn iap_challenge_failure_emits_event_when_observation_is_enabled() {
     let _request = {

@@ -4,7 +4,7 @@ use std::io::{Cursor, Write};
 use std::path::Path;
 use std::time::Duration;
 
-use ai::api_keys::ApiKeyManager;
+use ai::api_keys::{ApiKeyManager, CustomEndpointParams};
 use command::blocking::Command;
 use prost::Message;
 use warpui::integration::{AssertionOutcome, TestStep};
@@ -36,8 +36,16 @@ use super::hydrate_ai_conversation_assertion;
 
 /// Assumes that the terminal input is currently not in AI input mode.
 pub fn enter_agent_view() -> TestStep {
+    // The fixed binding that opens the fullscreen Agent View is `cmd-enter` on
+    // macOS and `ctrl-shift-enter` on Linux/Windows (see `CMD_ENTER_KEYBINDING`
+    // and the `StartNewAgentConversation` binding in `terminal/view/init.rs`).
+    let enter_agent_view_keystroke = if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-shift-enter"
+    };
     new_step_with_default_assertions("Enter Agent View")
-        .with_keystrokes(&["ctrl-shift-enter"])
+        .with_keystrokes(&[enter_agent_view_keystroke])
         .add_named_assertion(
             "Assert that we are in Agent View and AI input mode",
             move |app, window_id| {
@@ -441,10 +449,14 @@ pub fn add_custom_model_endpoint(
         move |app, _window_id| {
             ApiKeyManager::handle(app).update(app, |manager, ctx| {
                 manager.add_custom_endpoint(
-                    endpoint_name.clone(),
-                    base_url.clone(),
-                    api_key.clone(),
-                    vec![(model_name.clone(), None, Some(config_key.clone()))],
+                    CustomEndpointParams {
+                        name: endpoint_name.clone(),
+                        url: base_url.clone(),
+                        api_key: api_key.clone(),
+                        models: vec![(model_name.clone(), None, Some(config_key.clone()))],
+                        // Local fork endpoints are OpenAI-compatible (the default schema).
+                        schema: Default::default(),
+                    },
                     ctx,
                 );
             });
