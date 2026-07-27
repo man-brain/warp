@@ -23,5 +23,12 @@ jobs:
   populate_build_cache:
     name: CI
     if: github.repository_owner == 'warpdotdev'
+    # ci.yml's `tests` and `remote-server-tests` jobs request `id-token: write`
+    # (GCP Workload Identity Federation). A caller of a reusable workflow must
+    # grant every permission the nested jobs request, otherwise the run fails
+    # at startup ("startup_failure") before the `if` above is even evaluated.
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/ci.yml
     secrets: inherit
