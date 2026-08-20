@@ -14,6 +14,7 @@ fn custom_providers() -> api::request::settings::CustomModelProviders {
                     api::request::settings::custom_model_providers::CustomModel {
                         slug: "llama-3.3-70b".to_string(),
                         config_key: "cfg-123".to_string(),
+                        reasoning_effort: String::new(),
                     },
                 ],
             },
