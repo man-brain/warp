@@ -23,6 +23,13 @@ filter = 'package(integration)'
 # flaky tests.
 retries = 2
 
+[[profile.ci.overrides]]
+filter = 'package(warp_tui) and test(rejects_unknown_provider_api_key_setup_value)'
+platform = { host = 'cfg(target_os = "macos")' }
+# Under full workspace load, macOS can close this test process's inherited output handles after
+# nextest's 100ms default even though the test and the warp_tui suite leave no child processes.
+leak-timeout = "500ms"
+
 [profile.ci.junit]
 # Output nextest results in junit format (for uploading to buildpulse).
 # If `--profile ci` is selected on the command line, then the JUnit report will
